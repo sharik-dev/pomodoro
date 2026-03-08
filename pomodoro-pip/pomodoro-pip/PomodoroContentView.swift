@@ -14,14 +14,14 @@ struct PomodoroContentView: View {
         ZStack {
             if manager.isDynamicIslandMode {
                 dynamicIslandLayout
-                    .frame(width: 460, height: 70)
+                    .frame(width: 370, height: 56)
                     .transition(.asymmetric(
                         insertion: .scale(scale: 0.9).combined(with: .opacity),
                         removal:   .scale(scale: 0.9).combined(with: .opacity)
                     ))
             } else {
                 standardLayout
-                    .frame(width: 360, height: 400)
+                    .frame(width: 300, height: 330)
                     .transition(.asymmetric(
                         insertion: .scale(scale: 0.92).combined(with: .opacity),
                         removal:   .scale(scale: 0.92).combined(with: .opacity)
@@ -31,24 +31,34 @@ struct PomodoroContentView: View {
             // Setup overlay
             if showSetup {
                 Color.black.opacity(0.4)
-                    .clipShape(RoundedRectangle(cornerRadius: 44, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .transition(.opacity)
                     .onTapGesture { withAnimation(spring) { showSetup = false } }
 
                 TimerSetupView(isPresented: $showSetup)
                     .transition(.scale(scale: 0.88).combined(with: .opacity))
             }
+
+            // Celebration overlay (shown on top of everything)
+            if manager.showCelebration && !manager.isDynamicIslandMode {
+                CelebrationOverlay(state: manager.currentState)
+                    .frame(width: 300, height: 330)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 1.06).combined(with: .opacity),
+                        removal:   .scale(scale: 0.96).combined(with: .opacity)
+                    ))
+                    .zIndex(30)
+            }
         }
         .scaleEffect(appeared ? 1 : 0.84)
         .opacity(appeared ? 1 : 0)
         .onHover { hovering in withAnimation(spring) { isHovered = hovering } }
-        .onTapGesture(count: 2) { openSetup() }
         .onAppear {
             withAnimation(.spring(response: 0.55, dampingFraction: 0.78)) { appeared = true }
             if manager.isRunning { startPulse() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .openTimerSetup)) { _ in
-            withAnimation(spring) { showSetup = true }
+            openSetup()
         }
         .onChange(of: manager.isRunning) {
             if manager.isRunning { startPulse() } else { stopPulse() }
@@ -87,16 +97,16 @@ struct PomodoroContentView: View {
     private var standardLayout: some View {
         ZStack {
             // State-change colour flash
-            RoundedRectangle(cornerRadius: 44, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(PomodoroTheme.primaryColor(for: manager.currentState)
                         .opacity(manager.justChanged ? 0.2 : 0))
                 .animation(.easeOut(duration: 0.55), value: manager.justChanged)
 
             // Glass card
             VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                .clipShape(RoundedRectangle(cornerRadius: 44, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 44, style: .continuous)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(
                             LinearGradient(
                                 colors: [.white.opacity(0.5), .white.opacity(0.08)],
@@ -148,12 +158,12 @@ struct PomodoroContentView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 28)
-                .padding(.top, 26)
+                .padding(.horizontal, 18)
+                .padding(.top, 14)
 
                 Spacer(minLength: 0)
 
-                // ── Timer circle ─────────────────────────────────────────
+                // ── Timer circle — right-click (two-finger) opens setup ──
                 ZStack {
                     // Pulse glow ring
                     Circle()
@@ -165,11 +175,11 @@ struct PomodoroContentView: View {
                                     .clear
                                 ],
                                 center: .center,
-                                startRadius: 55,
-                                endRadius: 115
+                                startRadius: 44,
+                                endRadius: 90
                             )
                         )
-                        .frame(width: 230, height: 230)
+                        .frame(width: 180, height: 180)
                         .animation(.easeInOut(duration: 1.7).repeatForever(autoreverses: true), value: pulseGlow)
 
                     // Track + arc
@@ -179,22 +189,27 @@ struct PomodoroContentView: View {
                         primaryColor: PomodoroTheme.primaryColor(for: manager.currentState),
                         lineWidth: 14
                     )
-                    .frame(width: 168, height: 168)
+                    .frame(width: 136, height: 136)
 
                     // Time text
                     VStack(spacing: 3) {
                         Text(timeString(from: manager.timeRemaining))
                             .monospacedDigit()
-                            .font(.system(size: 42, weight: .bold, design: .rounded))
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                             .contentTransition(.numericText())
                             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: manager.timeRemaining)
-                            // Breathing scale when paused
                             .scaleEffect(!manager.isRunning && manager.currentState != .idle
                                          ? (pulseGlow ? 1.04 : 0.97) : 1.0)
                             .animation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true), value: pulseGlow)
+
+                        Text("right-click to setup")
+                            .font(.system(size: 9, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(isHovered ? 0.35 : 0))
+                            .animation(.easeInOut(duration: 0.2), value: isHovered)
                     }
                 }
+                .contentShape(Circle().size(CGSize(width: 180, height: 180)))
 
                 Spacer(minLength: 0)
 
@@ -206,10 +221,10 @@ struct PomodoroContentView: View {
                             .fill(filled
                                   ? PomodoroTheme.primaryColor(for: .work)
                                   : Color.white.opacity(0.18))
-                            .frame(width: 8, height: 8)
+                            .frame(width: 6, height: 6)
                             .shadow(color: filled
                                     ? PomodoroTheme.primaryColor(for: .work).opacity(0.7)
-                                    : .clear, radius: 4)
+                                    : .clear, radius: 3)
                             .animation(.spring(response: 0.4, dampingFraction: 0.6).delay(Double(i) * 0.06),
                                        value: manager.completedSessions)
                     }
@@ -218,7 +233,7 @@ struct PomodoroContentView: View {
                 Spacer(minLength: 0)
 
                 // ── Controls ─────────────────────────────────────────────
-                HStack(spacing: 24) {
+                HStack(spacing: 18) {
                     ControlButton(icon: "arrow.clockwise", color: .white.opacity(0.5)) {
                         withAnimation(spring) { manager.reset() }
                     }
@@ -227,8 +242,8 @@ struct PomodoroContentView: View {
                     ControlButton(
                         icon: manager.isRunning ? "pause.fill" : "play.fill",
                         color: .white,
-                        size: 58,
-                        iconSize: 22
+                        size: 48,
+                        iconSize: 18
                     ) {
                         withAnimation(spring) { manager.toggle() }
                     }
@@ -240,7 +255,7 @@ struct PomodoroContentView: View {
                                     .opacity(manager.isRunning && pulseGlow ? 0.6 : 0),
                                 lineWidth: 2
                             )
-                            .frame(width: 66, height: 66)
+                            .frame(width: 56, height: 56)
                             .animation(.easeInOut(duration: 1.7).repeatForever(autoreverses: true), value: pulseGlow)
                     )
 
@@ -256,7 +271,7 @@ struct PomodoroContentView: View {
 
                 Spacer(minLength: 0)
             }
-            .frame(height: 400)
+            .frame(height: 330)
         }
     }
 
@@ -283,9 +298,9 @@ struct PomodoroContentView: View {
                         progress: manager.progress,
                         gradient: PomodoroTheme.gradient(for: manager.currentState),
                         primaryColor: PomodoroTheme.primaryColor(for: manager.currentState),
-                        lineWidth: 3
+                        lineWidth: 2.5
                     )
-                    .frame(width: 26, height: 26)
+                    .frame(width: 22, height: 22)
 
                     VStack(alignment: .leading, spacing: -1) {
                         Text(manager.currentState.title)
@@ -296,15 +311,15 @@ struct PomodoroContentView: View {
 
                         Text(timeString(from: manager.timeRemaining))
                             .monospacedDigit()
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                             .contentTransition(.numericText())
                             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: manager.timeRemaining)
                     }
                 }
-                .frame(width: 130, alignment: .leading)
-                .padding(.leading, 20)
-                .padding(.top, 14)
+                .frame(width: 110, alignment: .leading)
+                .padding(.leading, 14)
+                .padding(.top, 10)
 
                 Spacer()
 
@@ -334,9 +349,9 @@ struct PomodoroContentView: View {
                             .transition(.opacity)
                     }
                 }
-                .frame(width: 120, alignment: .trailing)
-                .padding(.trailing, 20)
-                .padding(.top, 14)
+                .frame(width: 100, alignment: .trailing)
+                .padding(.trailing, 14)
+                .padding(.top, 10)
             }
         }
         .buttonStyle(.plain)
@@ -426,6 +441,203 @@ struct ProgressCircle: View {
                 .shadow(color: primaryColor.opacity(0.6), radius: lineWidth * 0.75)
                 .animation(.linear(duration: 1.0), value: progress)
         }
+    }
+}
+
+
+// MARK: - CelebrationOverlay
+
+private struct WidgetPiece: Identifiable {
+    let id: Int
+    let startX, startY, endX, endY: CGFloat
+    let startRot, endRot: Double
+    let color: Color
+    let w, h: CGFloat
+    let delay, dur: Double
+    let kind: Int   // 0 rect  1 circle  2 diamond
+
+    static func generate() -> [WidgetPiece] {
+        let palette: [Color] = [
+            Color(red: 1.0, green: 0.85, blue: 0.1),
+            Color(red: 1.0, green: 0.35, blue: 0.35),
+            Color(red: 0.35, green: 0.92, blue: 0.55),
+            Color(red: 0.3,  green: 0.78, blue: 1.0),
+            Color(red: 0.75, green: 0.4,  blue: 1.0),
+            Color(red: 1.0,  green: 0.45, blue: 0.8),
+            Color(red: 0.4,  green: 1.0,  blue: 0.9),
+        ]
+        let cx: CGFloat = 150
+        let cy: CGFloat = 145
+        return (0 ..< 55).map { i in
+            let angle = Double.random(in: 0 ..< 2 * .pi)
+            let dist  = CGFloat.random(in: 55 ... 165)
+            return WidgetPiece(
+                id: i,
+                startX: cx, startY: cy,
+                endX: cx + CGFloat(cos(angle)) * dist,
+                endY: cy + CGFloat(sin(angle)) * dist * 0.9,
+                startRot: Double.random(in: 0 ... 360),
+                endRot:   Double.random(in: -720 ... 720),
+                color: palette.randomElement()!,
+                w: CGFloat.random(in: 7 ... 16),
+                h: CGFloat.random(in: 4 ... 8),
+                delay: Double.random(in: 0 ... 0.2),
+                dur:   Double.random(in: 0.9 ... 1.7),
+                kind:  Int.random(in: 0 ... 2)
+            )
+        }
+    }
+}
+
+private struct CelebrationOverlay: View {
+    let state: PomodoroState
+
+    @State private var pieces: [WidgetPiece] = WidgetPiece.generate()
+    @State private var burst     = false
+    @State private var cardScale = 0.2
+    @State private var cardOpa   = 0.0
+    @State private var emojiScale: CGFloat = 0.1
+    @State private var ring1: CGFloat = 0.1
+    @State private var ring2: CGFloat = 0.1
+    @State private var ringOpa1  = 0.9
+    @State private var ringOpa2  = 0.9
+    @State private var shimmer   = false
+
+    private var accent: Color { PomodoroTheme.primaryColor(for: state) }
+
+    private var emoji: String {
+        switch state {
+        case .work:       return "🎉"
+        case .shortBreak: return "⚡️"
+        case .longBreak:  return "✨"
+        case .idle:       return "✅"
+        }
+    }
+    private var title: String {
+        switch state {
+        case .work:       return "SESSION\nCOMPLETE"
+        case .shortBreak: return "BREAK\nOVER"
+        case .longBreak:  return "RESTED &\nREADY"
+        case .idle:       return "DONE"
+        }
+    }
+    private var subtitle: String {
+        switch state {
+        case .work:       return "Amazing work!"
+        case .shortBreak: return "Back to focus"
+        case .longBreak:  return "Let's crush it"
+        case .idle:       return ""
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            // Backdrop
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.black.opacity(0.88))
+
+            // Shockwave rings
+            Circle()
+                .stroke(accent.opacity(ringOpa1), lineWidth: 2)
+                .frame(width: 100, height: 100)
+                .scaleEffect(ring1)
+                .position(x: 150, y: 145)
+
+            Circle()
+                .stroke(accent.opacity(ringOpa2 * 0.6), lineWidth: 1.4)
+                .frame(width: 100, height: 100)
+                .scaleEffect(ring2)
+                .position(x: 150, y: 145)
+
+            // Confetti
+            ForEach(pieces) { p in
+                pieceView(p)
+                    .position(
+                        x: burst ? p.endX : p.startX,
+                        y: burst ? p.endY : p.startY
+                    )
+                    .rotationEffect(.degrees(burst ? p.endRot : p.startRot))
+                    .opacity(burst ? 1 : 0)
+                    .animation(
+                        .spring(response: p.dur, dampingFraction: 0.62).delay(p.delay),
+                        value: burst
+                    )
+            }
+
+            // Center card
+            VStack(spacing: 6) {
+                Text(emoji)
+                    .font(.system(size: 52))
+                    .scaleEffect(emojiScale)
+                    .shadow(color: accent.opacity(0.9), radius: 16)
+                    .animation(
+                        .spring(response: 0.46, dampingFraction: 0.38).delay(0.05),
+                        value: emojiScale
+                    )
+
+                Text(title)
+                    .font(.system(size: 22, weight: .black, design: .rounded))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .shadow(color: accent.opacity(0.95), radius: 12)
+                    .shadow(color: accent.opacity(0.4), radius: 28)
+
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.55))
+
+                // Shimmer bar
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(
+                        LinearGradient(
+                            colors: [accent.opacity(0.2), accent, accent.opacity(0.2)],
+                            startPoint: shimmer ? .leading  : .trailing,
+                            endPoint:   shimmer ? .trailing : .leading
+                        )
+                    )
+                    .frame(width: 120, height: 2.5)
+                    .padding(.top, 4)
+                    .animation(
+                        .easeInOut(duration: 1.0).repeatForever(autoreverses: false),
+                        value: shimmer
+                    )
+            }
+            .scaleEffect(cardScale)
+            .opacity(cardOpa)
+        }
+        .clipped()
+        .onAppear {
+            // Rings
+            withAnimation(.easeOut(duration: 0.9))  { ring1 = 5.5; ringOpa1 = 0 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                withAnimation(.easeOut(duration: 0.85)) { ring2 = 4.5; ringOpa2 = 0 }
+            }
+            // Confetti
+            withAnimation { burst = true }
+            // Card
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.55).delay(0.04)) {
+                cardScale = 1
+                cardOpa   = 1
+            }
+            // Emoji
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { emojiScale = 1 }
+            // Shimmer
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { shimmer = true }
+        }
+    }
+
+    @ViewBuilder
+    private func pieceView(_ p: WidgetPiece) -> some View {
+        Group {
+            if p.kind == 0 {
+                Rectangle().fill(p.color).frame(width: p.w, height: p.h)
+            } else if p.kind == 1 {
+                Circle().fill(p.color).frame(width: p.h + 2, height: p.h + 2)
+            } else {
+                Rectangle().fill(p.color).frame(width: p.h, height: p.h).rotationEffect(.degrees(45))
+            }
+        }
+        .shadow(color: p.color.opacity(0.7), radius: 4)
     }
 }
 

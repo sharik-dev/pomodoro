@@ -53,7 +53,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
-        // Raycast-style screen flash on finish
+        // Full-screen celebration overlay on finish
         manager.$timerJustFinished
             .filter { $0 }
             .receive(on: DispatchQueue.main)

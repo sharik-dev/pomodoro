@@ -27,6 +27,7 @@ class PomodoroManager: ObservableObject {
     @Published var isDynamicIslandMode: Bool = false
     @Published var justChanged: Bool = false
     @Published var timerJustFinished: Bool = false
+    @Published var showCelebration: Bool = false
     @Published var completedSessions: Int = 0
 
     @Published var workDuration: TimeInterval = 25 * 60
@@ -75,6 +76,8 @@ class PomodoroManager: ObservableObject {
     func resume() {
         if currentState == .idle {
             start(state: .work)
+        } else if timeRemaining <= 0 {
+            reset()
         } else {
             isRunning = true
             setupTimer()
@@ -122,8 +125,12 @@ class PomodoroManager: ObservableObject {
         }
         triggerStateChange()
         timerJustFinished = true
+        showCelebration = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.timerJustFinished = false
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
+            withAnimation(.easeOut(duration: 0.4)) { self.showCelebration = false }
         }
         sendNotification()
     }

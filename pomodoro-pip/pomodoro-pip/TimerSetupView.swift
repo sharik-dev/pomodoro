@@ -10,25 +10,25 @@ struct TimerSetupView: View {
     @State private var appeared = false
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 12) {
             // Header
             HStack {
                 Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundColor(.white.opacity(0.6))
                 Text("Timer Setup")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 Spacer()
                 Button(action: { close() }) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18))
+                        .font(.system(size: 15))
                         .foregroundColor(.white.opacity(0.4))
                 }
                 .buttonStyle(.plain)
             }
 
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
                 DurationRow(
                     label: "Focus",
                     icon: "flame.fill",
@@ -52,30 +52,33 @@ struct TimerSetupView: View {
                 )
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Button("Cancel") { close() }
                     .buttonStyle(SetupButtonStyle(isPrimary: false))
 
                 Button("Apply") {
-                    manager.workDuration = workMinutes * 60
-                    manager.shortBreakDuration = shortBreakMinutes * 60
-                    manager.longBreakDuration = longBreakMinutes * 60
-                    manager.reset()
-                    close()
+                    NSApp.keyWindow?.makeFirstResponder(nil)
+                    DispatchQueue.main.async {
+                        manager.workDuration = workMinutes * 60
+                        manager.shortBreakDuration = shortBreakMinutes * 60
+                        manager.longBreakDuration = longBreakMinutes * 60
+                        manager.reset()
+                        close()
+                    }
                 }
                 .buttonStyle(SetupButtonStyle(isPrimary: true))
             }
         }
-        .padding(22)
+        .padding(14)
         .background(
             ZStack {
                 VisualEffectView(material: .hudWindow, blendingMode: .withinWindow)
                 Color.black.opacity(0.3)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(
                     LinearGradient(
                         colors: [.white.opacity(0.3), .white.opacity(0.05)],
@@ -86,7 +89,7 @@ struct TimerSetupView: View {
                 )
         )
         .shadow(color: .black.opacity(0.5), radius: 30, x: 0, y: 15)
-        .frame(width: 272)
+        .frame(width: 220)
         .scaleEffect(appeared ? 1 : 0.88)
         .opacity(appeared ? 1 : 0)
         .onAppear {
@@ -100,14 +103,12 @@ struct TimerSetupView: View {
     }
 
     private func close() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            appeared = false
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            isPresented = false
-        }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { appeared = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { isPresented = false }
     }
 }
+
+// MARK: - DurationRow with direct text input
 
 struct DurationRow: View {
     let label: String
@@ -116,72 +117,83 @@ struct DurationRow: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
 
+    @State private var text: String = ""
+    @FocusState private var focused: Bool
+
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .foregroundColor(color)
-                .font(.system(size: 13, weight: .semibold))
-                .frame(width: 18)
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 14)
 
             Text(label)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundColor(.white.opacity(0.85))
 
             Spacer()
 
-            HStack(spacing: 6) {
-                Button(action: {
-                    if value > range.lowerBound {
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
-                            value -= 1
-                        }
-                    }
-                }) {
-                    Image(systemName: "minus.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.white.opacity(0.35))
-                }
-                .buttonStyle(.plain)
-
-                Text("\(Int(value)) min")
+            // Input field
+            HStack(spacing: 4) {
+                TextField("", text: $text)
+                    .textFieldStyle(.plain)
+                    .multilineTextAlignment(.center)
                     .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundColor(.white)
-                    .frame(width: 54, alignment: .center)
-                    .contentTransition(.numericText())
-                    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: value)
-
-                Button(action: {
-                    if value < range.upperBound {
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
-                            value += 1
-                        }
+                    .frame(width: 30)
+                    .focused($focused)
+                    .onSubmit { commit() }
+                    .onChange(of: text) {
+                        // Strip non-digits
+                        let filtered = text.filter { $0.isNumber }
+                        if filtered != text { text = filtered }
                     }
-                }) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(color)
-                }
-                .buttonStyle(.plain)
+                    // Commit on focus loss
+                    .onChange(of: focused) { if !focused { commit() } }
+
+                Text("min")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.4))
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.white.opacity(focused ? 0.12 : 0.07))
+            .cornerRadius(6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(focused ? color.opacity(0.7) : Color.clear, lineWidth: 1.5)
+            )
+            .animation(.easeInOut(duration: 0.15), value: focused)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
         .background(Color.white.opacity(0.06))
-        .cornerRadius(12)
+        .cornerRadius(9)
+        .onAppear { text = "\(Int(value))" }
+        .onChange(of: value) { text = "\(Int(value))" }
+    }
+
+    private func commit() {
+        guard let n = Double(text) else { text = "\(Int(value))"; return }
+        let clamped = min(max(n, range.lowerBound), range.upperBound)
+        value = clamped
+        text = "\(Int(clamped))"
     }
 }
+
+// MARK: - SetupButtonStyle
 
 struct SetupButtonStyle: ButtonStyle {
     let isPrimary: Bool
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .semibold, design: .rounded))
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
             .foregroundColor(isPrimary ? .black : .white.opacity(0.7))
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
+            .padding(.vertical, 7)
             .background(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(isPrimary ? Color.white : Color.white.opacity(0.1))
             )
             .scaleEffect(configuration.isPressed ? 0.95 : 1)

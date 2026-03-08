@@ -3,8 +3,14 @@ import SwiftUI
 
 class PomodoroWindow: NSPanel {
 
-    static let standardSize = CGSize(width: 360, height: 400)
-    static let islandSize   = CGSize(width: 460, height: 70)
+    static let standardSize = CGSize(width: 300, height: 330)
+    static let islandSize   = CGSize(width: 370, height: 56)
+
+    private var rightClickMonitor: Any?
+
+    deinit {
+        if let m = rightClickMonitor { NSEvent.removeMonitor(m) }
+    }
 
     init(contentView: NSView) {
         super.init(
@@ -13,6 +19,12 @@ class PomodoroWindow: NSPanel {
             backing: .buffered,
             defer: false
         )
+
+        rightClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) { [weak self] event in
+            guard self != nil else { return event }
+            NotificationCenter.default.post(name: .openTimerSetup, object: nil)
+            return nil
+        }
 
         isMovableByWindowBackground = true
         backgroundColor = .clear
@@ -49,15 +61,18 @@ class PomodoroWindow: NSPanel {
             } else {
                 let w = Self.standardSize.width
                 let h = Self.standardSize.height
+                // Anchor flush below the menu bar / notch
                 targetFrame = NSRect(
-                    x: screenRect.width / 2 - w / 2,
-                    y: screenRect.height - h - 100,
+                    x: screenRect.midX - w / 2,
+                    y: screenRect.maxY - h,
                     width: w, height: h
                 )
                 self.hasShadow = true
             }
 
-            self.setFrame(targetFrame, display: true, animate: true)
+            // No window animation — intermediate sizes cause NSHostingView constraint loops.
+            // SwiftUI's scale/opacity transitions handle the visual.
+            self.setFrame(targetFrame, display: true, animate: false)
         }
     }
 }
